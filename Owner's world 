@@ -1,0 +1,101 @@
+JSON (equivalent, trimmed):
+{
+ "roles": {
+ "root_owner": {
+ "description":"Immutable highest-privilege owner — sole signer",
+ "allow":[{"action":"","resource":"","conditions":[]}],
+ "auth":{"required_factors":["FIDO2_hardware_key","passphrase"],"signing_key":"hsm:root_owner_key_id"}
+ },
+ "ops_admin": {
+ "description":"Create/approve routine requests (no final signing)",
+ "allow":[{"action":["create:withdrawal","approve:withdrawal"],"resource":["withdrawal_request_onchain","withdrawal_request_fiat"],"conditions":[{"aml_flag":false},{"kyc_level":["L2","L3"]},{"amount_usd":"<=50000"}]}]
+ },
+ "finance_admin": {
+ "description":"Prepare/approve fiat wires / reconciliation",
+ "allow":[{"action":["prepare:wire","approve:wire"],"resource":["bank_account","wire_instructions"],"conditions":[{"aml_flag":false},{"amount_usd":"<=500000"}]}]
+ },
+ "auditor": {"description":"Read only","allow":[{"action":["read:*"],"resource":["ledger","audit_logs"],"conditions":[]}]} ,
+ "service": {"description":"Machine accounts","allow":[{"action":["create:withdrawal","read:balances"],"resource":["withdrawal_request_onchain","internal_ledger"],"conditions":[{"token_type":"short_lived"},{"max_daily_amount_usd":"<=1000"}]}]
+ },
+ "thresholds": {
+ "low_auto":{"usd_max":1000,"require_owner_signature":false},
+ "medium_ops":{"usd_range":[1001,50000],"require_approvals":["ops_admin","finance_admin"],"require_owner_signature":true,"time_lock_seconds":1800},
+ "high_owner":{"usd_range":[50001,500000],"require_approvals":["ops_admin","finance_admin"],"require_owner_signature":true,"time_lock_seconds":1800},
+ "critical_owner_only":{"usd_min":500001,"require_owner_signature":true,"time_lock_seconds":86400,"extra_checks":["compliance_manual_review","treasury_ok"]}
+ },
+ "enforcement":{"owner_rotation":"board_resolution + notarized_id + 72h_time_lock + third_party_audit","delegation_tokens":{"allowed":true,"max_lifetime_seconds":86400,"revocable":true,"max_daily_total_usd":10000}}
+}
+
+
+
+
+{
+  "request_id": "req-uuid-0001",
+  "payload": {
+    "from_address": "0xAAA...",
+    "to_address": "0xBBB...",
+    "amount": "1.23 ETH",
+    "amount_usd": 2500,
+    "nonce": "42",
+    "chain": "ethereum",
+    "created_by": "service_account_7",
+    "approvals": [
+      {"role":"ops_admin","actor":"op@company","ts":1709998000},
+      {"role":"finance_admin","actor":"fin@company","ts":1709998100}
+    ],
+    "audit_hash":"sha256-of-internal-records"
+  },
+  "time_lock_until": 0
+}
+
+
+
+
+YAML:
+roles:
+ root_owner:
+ description: Immutable highest-privilege owner — sole signer
+ allow:
+ - action: ""
+ resource: ""
+ conditions: []
+ auth:
+ required_factors: ["FIDO2_hardware_key","passphrase"]
+ signing_key: "hsm:root_owner_key_id"
+ super_admin:
+ description: Read / ticket / recommend only
+ allow:
+ - action: ["read:*","create:ticket"]
+ resource: ["roles","logs","tickets"]
+ conditions: []
+ ops_admin:
+ description: Create/approve routine requests (no final signing)
+ allow:
+ - action: ["create:withdrawal","approve:withdrawal"]
+ resource: ["withdrawal_request_onchain","withdrawal_request_fiat"]
+ conditions:
+ - aml_flag: false
+ - kyc_level: ["L2","L3"]
+ - amount_usd: "<=50000"
+ finance_admin:
+ description: Prepare/approve fiat wires / reconciliation
+ allow:
+ - action: ["prepare:wire","approve:wire"]
+ resource: ["bank_account","wire_instructions"]
+ conditions:
+ - aml_flag: false
+ - amount_usd: "<=500000"
+ auditor:
+ description: Read only immutable logs and ledger
+ allow:
+ - action: ["read:*"]
+ resource: ["ledger","audit_logs"]
+ conditions: []
+ service:
+ description: Machine/service accounts, least privilege
+ allow:
+ - action: ["create:withdrawal","read:balances"]
+ resource: ["withdrawal_request_onchain","internal_ledger"]
+ conditions:
+ - token_type: "short_lived"
+ - max_daily_amount_usd: "<=1000"
